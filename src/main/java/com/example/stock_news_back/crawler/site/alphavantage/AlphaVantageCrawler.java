@@ -18,6 +18,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  * Alpha Vantage News & Sentiment API 크롤러.
@@ -74,11 +78,11 @@ public class AlphaVantageCrawler implements NewsCrawler {
     @Override
     public List<CrawledArticle> crawl() {
         String tickerParam = String.join(",", crawlerProperties.getTargetTickers());
-        String timeFrom = LocalDateTime.now()
+        String timeFrom = LocalDateTime.now(java.time.ZoneOffset.UTC)
                 .minusHours(lookbackHours)
                 .format(AV_TIME_FROM_FMT);
 
-        log.debug("[AlphaVantage] 요청 tickers={}, time_from={}", tickerParam, timeFrom);
+        log.info("[AlphaVantage] 요청 tickers={}, topics={}, time_from={}", tickerParam, topics, timeFrom);
 
         try {
             String json = webClient.get()
@@ -122,9 +126,12 @@ public class AlphaVantageCrawler implements NewsCrawler {
             return Collections.emptyList();
         }
 
+        String itemsCount = root.path("items").asText("?");
+        log.info("[AlphaVantage] API 응답 items={}", itemsCount);
+
         JsonNode feed = root.path("feed");
         if (!feed.isArray() || feed.isEmpty()) {
-            log.info("[AlphaVantage] 수집된 기사 없음 (기간 내 새 기사 없거나 필터 미해당)");
+            log.info("[AlphaVantage] feed 없음 — 응답 키 목록: {}", root.fieldNames());
             return Collections.emptyList();
         }
 
@@ -166,7 +173,7 @@ public class AlphaVantageCrawler implements NewsCrawler {
             }
         }
 
-        log.debug("[AlphaVantage] 파싱 완료: feed={}, 생성={}", feed.size(), articles.size());
+        log.info("[AlphaVantage] 파싱 완료: feed={}, target ticker 매칭={}", feed.size(), articles.size());
         return articles;
     }
 
